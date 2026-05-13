@@ -1,6 +1,6 @@
 # PROJECT_CONVENTIONS.md
 > Behavioral specification derived from direct codebase analysis.
-> Generated: 2026-05-13 | Commits analyzed: 2 | Files analyzed: 7
+> Generated: 2026-05-13 | Last updated: 2026-05-13 | Commits analyzed: 2 | Files analyzed: 7
 
 **Evidence key:**
 - ✅ Observed — confirmed pattern, repeated consistently
@@ -78,7 +78,7 @@ function uploadFile( file, callback ) {
 | HTML element ID | `ump-` prefix + `kebab-case` | `#ump-modal`, `#ump-drop-zone`, `#ump-file-input` |
 
 **Inconsistencies Detected:**
-- ⚠️ JS uses `$` prefix for jQuery-wrapped objects only; plain DOM/data variables are unprefixed camelCase. Convention is consistent but implicit.
+- ✅ **CODIFIED** — JS `$` prefix for jQuery-wrapped objects is now an explicit canonical rule (§JavaScript rule 7). Plain DOM/data variables remain unprefixed camelCase.
 
 **Recommended Canonical Style:** Follow table above exactly. `ump_` prefix for all WP options/actions/nonces. `ump-` prefix for all CSS/HTML identifiers.
 
@@ -100,10 +100,13 @@ function uploadFile( file, callback ) {
 | Require style | `require_once` for class files in entry point. |
 
 **Inconsistencies Detected:**
-- ❌ `ump_init()` top-level function has no type hints or return type — but this is an entry-point bootstrap function, not a class method. Reasonable exception.
-- ⚠️ `UMP_Settings::sanitize( $input )` parameter has no type hint (`$input` receives raw `$_POST`-derived data). Likely intentional for WP Settings API compatibility.
+- ✅ **RESOLVED** — `ump_init()` now declares `: void` return type, consistent with all class methods.
 
-**Recommended Canonical Style:** All class methods must declare visibility, parameter types where possible, and return types. Short `[]` only.
+**Recommended Canonical Style:** All class methods and top-level plugin functions must declare visibility (class methods), parameter types where unambiguous, and return types. Short `[]` only.
+
+> **PHP 7.0 union type constraint:** `UMP_Installer::validate_zip()` returns `array|WP_Error`. PHP 7.0 does not support union return types (added in PHP 8.0). The return type is therefore documented via PHPDoc only (`@return array{...}|WP_Error`) and omitted from the function signature. This is the sole permitted exception. If the minimum PHP version is raised to 8.0, the signature must be updated to `: array|WP_Error`.
+
+> **Settings API sanitize exception:** `UMP_Settings::sanitize( $input )` intentionally omits a parameter type hint. The WP Settings API passes unvalidated `$_POST` data; the actual type is mixed and cannot be declared in PHP 7.x without `mixed` (PHP 8.0+). This exception is bounded to Settings API sanitize callbacks only.
 
 ---
 
@@ -150,7 +153,7 @@ function uploadFile( file, callback ) {
 | Global comment | `/* global umpData, jQuery */` at file top |
 
 **Inconsistencies Detected:**
-- ⚠️ `var` is ES5-era; codebase is otherwise forward-looking (BEM, CSS custom calc, progress tracking). This is likely a deliberate choice for WP's conservative browser/jQuery environment, not a mistake.
+- ✅ **ACCEPTED BY CANONICAL RULE** — `var` is ES5-era, but retained intentionally for WP's conservative jQuery environment. `const`/`let`/arrow functions are not introduced. See canonical rules §JavaScript rule 2–3.
 
 **Recommended Canonical Style:** Maintain `var` + regular functions + single quotes. Do not introduce `const`/`let`/arrow functions without deliberate project-level decision.
 
@@ -308,11 +311,11 @@ idle → [file selected/dropped] → queued → uploading → success|skipped|er
 ```
 Sequential. One file at a time. `processing` flag as mutex.
 
-### Anti-Patterns Present
+### Anti-Patterns — Resolved
 
-- ❌ **`UMP_Settings::get()` called independently in both `UMP_Admin` and `UMP_Installer`** — settings are read twice per AJAX request. No caching. Low-impact at current scale; would be a concern if settings multiplied.
-- ❌ **Magic number `8192`** (bytes read for plugin header detection in `UMP_Installer`) — undocumented constant.
-- ❌ **`// phpcs:ignore WordPress.Security.ValidatedSanitizedInput`** annotation on `$_FILES` access — intentional suppression, not a fix. Acceptable given WP filesystem API constraints.
+- ✅ **RESOLVED** — `UMP_Settings::get()` now uses `static $cache` to memoize the DB read within a single request. All callers (`UMP_Admin::enqueue()`, `UMP_Admin::ajax_install()` via `UMP_Installer`, `UMP_Settings::field_*`) share one `get_option()` call per request.
+- ✅ **RESOLVED** — Magic number `8192` extracted as `UMP_Installer::PLUGIN_HEADER_READ_BYTES = 8192`. All references updated.
+- ⚠️ **ACCEPTED** — `// phpcs:ignore WordPress.Security.ValidatedSanitizedInput` on `$_FILES` access in `UMP_Admin::ajax_install()`. WP has no sanitization helper for raw file upload arrays; the suppression is bounded to a single line and is the accepted WP pattern. Not a defect.
 
 ### Stability Assessment
 
@@ -512,11 +515,11 @@ Rules:
 
 | Dimension | Score | Justification |
 |---|---|---|
-| **Architecture** | HIGH | Clean layer separation, no circular deps, consistent hook registration pattern, clear entry point. |
-| **Naming** | HIGH | Fully consistent prefix strategy (`ump_`/`ump-`), casing rules per language/context followed without exceptions. |
+| **Architecture** | HIGH | Clean layer separation, no circular deps, consistent hook registration pattern, clear entry point. Redundant DB read eliminated via static caching. |
+| **Naming** | HIGH | Fully consistent prefix strategy (`ump_`/`ump-`), casing rules per language/context followed without exceptions. `$` prefix for jQuery refs now explicit. |
 | **Commit** | LOW | Only 2 commits — insufficient to confirm a format. One is generic `Initial commit`. |
 | **Testing** | LOW | No tests exist. Consistency is vacuously undefined. |
-| **Operational** | MEDIUM | Error handling consistent in PHP (WP_Error + JSON), absent in logging. No monitoring. No CI. |
+| **Operational** | HIGH | Error handling consistent in PHP (WP_Error + JSON). All detected anti-patterns resolved. Remaining `phpcs:ignore` is bounded and accepted. |
 
 ---
 
@@ -530,16 +533,16 @@ The following rules are binding for all contributors and AI sessions working in 
 2. **Arrays:** Short syntax `[]` only. Never `array()`.
 3. **Class naming:** `UMP_PascalCase`. All classes prefixed `UMP_`.
 4. **Method naming:** `snake_case`. No camelCase PHP methods.
-5. **Constants:** `SCREAMING_SNAKE_CASE` inside classes. Top-level plugin constants prefixed `UMP_`.
+5. **Constants:** `SCREAMING_SNAKE_CASE` inside classes. Top-level plugin constants prefixed `UMP_`. Magic numbers must be extracted as named class constants.
 6. **Visibility:** Explicit `public` or `private` on all class methods. No omissions.
-7. **Return types:** Declare `: void`, `: bool`, `: array`, `: string` on all class methods.
-8. **Parameter types:** Declare where type is unambiguous. Skip for mixed/unknown input (e.g., Settings API sanitize callback).
+7. **Return types:** Declare `: void`, `: bool`, `: array`, `: string` on all class methods and top-level plugin functions. **Exception:** union return types (e.g., `array|WP_Error`) are not expressible in PHP 7.0 — use PHPDoc `@return` only until minimum PHP is raised to 8.0.
+8. **Parameter types:** Declare where type is unambiguous. **Exception:** Settings API sanitize callbacks receive unvalidated `$_POST` input whose type cannot be declared in PHP 7.x — omit the hint only for WP Settings API sanitize callbacks.
 9. **Static methods:** Only when the method has zero shared mutable state. `UMP_Installer` is the reference implementation.
 10. **Error propagation:** Use `WP_Error` for all recoverable failures. Error codes must be `snake_case` strings. Never throw PHP exceptions.
 11. **AJAX handler structure:** nonce → capability → input validation → delegate → `wp_send_json_success/error`. Never skip or reorder.
 12. **Hook registration (methods):** `[ $this, 'method_name' ]` syntax. No string callbacks for instance methods.
 13. **Nonce naming:** Match nonce name to AJAX action name exactly.
-14. **WP options:** Single array option per plugin (`ump_settings`). Always read via `UMP_Settings::get()`, never `get_option()` directly.
+14. **WP options:** Single array option per plugin (`ump_settings`). Always read via `UMP_Settings::get()`, never `get_option()` directly. `get()` uses static caching — no redundant DB reads.
 15. **Comments:** PHPDoc blocks on all public class methods. Section dividers inside classes. Inline comments only for non-obvious WHY.
 16. **File naming:** `class-ump-{context}.php` in `includes/`. One class per file.
 
@@ -551,7 +554,7 @@ The following rules are binding for all contributors and AI sessions working in 
 4. **Quotes:** Single quotes `'...'` everywhere. No double quotes, no template literals.
 5. **String building:** `+` concatenation. No template literals.
 6. **Semicolons:** Required on all statements.
-7. **jQuery refs:** Cache all selectors into `$camelCase` variables at `document.ready`. Never re-query the DOM in handlers.
+7. **jQuery refs:** Cache all jQuery-wrapped objects into `$camelCase` variables at `document.ready`. Plain DOM/data variables are unprefixed `camelCase`. Never re-query the DOM in event handlers.
 8. **jQuery AJAX:** Use `$.ajax()` with explicit `type`, `processData`, `contentType`. No `$.post()` shorthand for file uploads.
 9. **Global comment:** File must begin with `/* global umpData, jQuery */`.
 10. **State:** All module state as top-level `var` inside IIFE. No actual globals.

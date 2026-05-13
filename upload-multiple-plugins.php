@@ -22,7 +22,7 @@ require_once UMP_DIR . 'includes/class-ump-settings.php';
 require_once UMP_DIR . 'includes/class-ump-installer.php';
 require_once UMP_DIR . 'includes/class-ump-admin.php';
 
-function ump_init() {
+function ump_init(): void {
 	if ( ! is_admin() ) {
 		return;
 	}

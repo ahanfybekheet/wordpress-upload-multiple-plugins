@@ -13,8 +13,12 @@ class UMP_Settings {
 	}
 
 	public static function get(): array {
-		$saved = get_option( self::OPTION_KEY, [] );
-		return array_merge( self::defaults(), (array) $saved );
+		static $cache = null;
+		if ( null === $cache ) {
+			$saved = get_option( self::OPTION_KEY, [] );
+			$cache = array_merge( self::defaults(), (array) $saved );
+		}
+		return $cache;
 	}
 
 	public function __construct() {

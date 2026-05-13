@@ -3,6 +3,9 @@ defined( 'ABSPATH' ) || exit;
 
 class UMP_Installer {
 
+	/** Bytes read from a candidate PHP file to detect the "Plugin Name:" header. */
+	const PLUGIN_HEADER_READ_BYTES = 8192;
+
 	/**
 	 * Validate a ZIP file for safe plugin structure.
 	 *
@@ -54,8 +57,8 @@ class UMP_Installer {
 
 			// Main plugin file: sits directly inside the root folder (depth == 2).
 			if ( count( $parts ) === 2 && 'php' === strtolower( pathinfo( $name, PATHINFO_EXTENSION ) ) ) {
-				// Read first 8 KB to check for Plugin Name header.
-				$content = $zip->getFromIndex( $i, 8192 );
+				// Read leading bytes to check for Plugin Name header.
+				$content = $zip->getFromIndex( $i, self::PLUGIN_HEADER_READ_BYTES );
 				if ( $content && false !== strpos( $content, 'Plugin Name:' ) ) {
 					$plugin_files[] = $name;
 				}
