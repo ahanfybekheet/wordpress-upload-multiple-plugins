@@ -76,9 +76,10 @@
 	function bindDropZone() {
 		// Click-to-browse
 		$dropZone.on( 'click keydown', function ( e ) {
+			if ( $( e.target ).is( $fileInput ) ) return; // ignore bubbled click from the input itself
 			if ( e.type === 'click' || e.key === 'Enter' || e.key === ' ' ) {
 				e.preventDefault();
-				$fileInput.trigger( 'click' );
+				$fileInput[ 0 ].click(); // native click required — browsers block file picker from synthetic jQuery events
 			}
 		} );
 
