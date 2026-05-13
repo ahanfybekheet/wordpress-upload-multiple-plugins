@@ -1,0 +1,359 @@
+/* ==========================================================================
+   Upload Multiple Plugins — Admin Styles
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Admin bar button
+   -------------------------------------------------------------------------- */
+#wp-admin-bar-ump-upload > .ab-item {
+	display: flex !important;
+	align-items: center;
+	gap: 4px;
+}
+
+#wp-admin-bar-ump-upload .ab-icon {
+	font: 400 20px/1 dashicons !important;
+	margin-top: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Global drop overlay (fullscreen, shown when dragging over admin)
+   -------------------------------------------------------------------------- */
+.ump-global-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 999999;
+	background: rgba( 0, 115, 170, 0.88 );
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+	animation: umpFadeIn 0.15s ease;
+}
+
+.ump-global-overlay[hidden] {
+	display: none;
+}
+
+.ump-global-overlay-inner {
+	text-align: center;
+	color: #fff;
+	pointer-events: none;
+}
+
+.ump-global-overlay-inner .dashicons {
+	font-size: 64px;
+	width: 64px;
+	height: 64px;
+	display: block;
+	margin: 0 auto 12px;
+	animation: umpBounce 0.6s ease infinite alternate;
+}
+
+.ump-global-overlay-inner p {
+	font-size: 22px;
+	font-weight: 600;
+	margin: 0;
+	letter-spacing: 0.01em;
+}
+
+/* --------------------------------------------------------------------------
+   Modal backdrop
+   -------------------------------------------------------------------------- */
+body.ump-modal-open {
+	overflow: hidden;
+}
+
+.ump-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 160100; /* above admin bar (z-index 99999) */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.ump-modal[hidden] {
+	display: none;
+}
+
+.ump-modal-backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba( 0, 0, 0, 0.6 );
+	cursor: pointer;
+	animation: umpFadeIn 0.2s ease;
+}
+
+/* --------------------------------------------------------------------------
+   Modal box
+   -------------------------------------------------------------------------- */
+.ump-modal-box {
+	position: relative;
+	background: #fff;
+	border-radius: 4px;
+	box-shadow: 0 8px 32px rgba( 0, 0, 0, 0.28 );
+	width: min( 560px, calc( 100vw - 40px ) );
+	max-height: calc( 100vh - 80px );
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	animation: umpSlideIn 0.2s ease;
+	padding: 28px 28px 24px;
+}
+
+.ump-modal-close {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 4px;
+	color: #646970;
+	border-radius: 3px;
+	line-height: 1;
+	transition: color 0.15s, background 0.15s;
+}
+
+.ump-modal-close:hover,
+.ump-modal-close:focus {
+	color: #1d2327;
+	background: #f0f0f1;
+	outline: none;
+}
+
+.ump-modal-close .dashicons {
+	font-size: 20px;
+	width: 20px;
+	height: 20px;
+}
+
+.ump-modal-title {
+	font-size: 18px;
+	font-weight: 600;
+	color: #1d2327;
+	margin: 0 0 20px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	line-height: 1.3;
+}
+
+.ump-modal-title .dashicons {
+	color: #0073aa;
+	font-size: 22px;
+	width: 22px;
+	height: 22px;
+	margin-top: 1px;
+}
+
+/* --------------------------------------------------------------------------
+   Drop zone (inside modal)
+   -------------------------------------------------------------------------- */
+.ump-drop-zone {
+	border: 2px dashed #c3c4c7;
+	border-radius: 4px;
+	padding: 32px 24px;
+	text-align: center;
+	cursor: pointer;
+	transition: border-color 0.2s, background 0.2s;
+	flex-shrink: 0;
+	outline: none;
+}
+
+.ump-drop-zone:hover,
+.ump-drop-zone:focus {
+	border-color: #0073aa;
+	background: #f0f7fb;
+}
+
+.ump-drop-zone--active {
+	border-color: #0073aa;
+	background: #e8f4fb;
+	border-style: solid;
+}
+
+.ump-drop-icon {
+	font-size: 40px !important;
+	width: 40px !important;
+	height: 40px !important;
+	color: #0073aa;
+	display: block !important;
+	margin: 0 auto 10px;
+}
+
+.ump-drop-title {
+	font-size: 15px;
+	font-weight: 600;
+	color: #1d2327;
+	margin: 0 0 4px;
+}
+
+.ump-drop-sub {
+	font-size: 13px;
+	color: #646970;
+	margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   File list
+   -------------------------------------------------------------------------- */
+.ump-file-list {
+	list-style: none;
+	margin: 16px 0 0;
+	padding: 0;
+	overflow-y: auto;
+	max-height: 300px;
+	flex: 1 1 auto;
+}
+
+.ump-file-list:empty {
+	display: none;
+}
+
+.ump-file-item {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	grid-template-rows: auto auto auto;
+	column-gap: 12px;
+	padding: 10px 12px;
+	border-radius: 3px;
+	margin-bottom: 6px;
+	background: #f6f7f7;
+	border-left: 3px solid #c3c4c7;
+	font-size: 13px;
+	animation: umpFadeIn 0.15s ease;
+}
+
+.ump-file-item:last-child {
+	margin-bottom: 0;
+}
+
+.ump-file-name {
+	grid-column: 1;
+	grid-row: 1;
+	font-weight: 500;
+	color: #1d2327;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ump-file-status {
+	grid-column: 2;
+	grid-row: 1;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	white-space: nowrap;
+	align-self: center;
+}
+
+.ump-progress-wrap {
+	grid-column: 1 / -1;
+	grid-row: 2;
+	height: 3px;
+	background: #dcdcde;
+	border-radius: 2px;
+	overflow: hidden;
+	margin-top: 6px;
+}
+
+.ump-progress-bar {
+	height: 100%;
+	background: #0073aa;
+	border-radius: 2px;
+	transition: width 0.25s linear;
+}
+
+.ump-file-message {
+	grid-column: 1 / -1;
+	grid-row: 3;
+	font-size: 12px;
+	color: #646970;
+	margin-top: 4px;
+}
+
+.ump-file-message:empty {
+	display: none;
+}
+
+/* State variants */
+.ump-file-item--uploading {
+	border-left-color: #0073aa;
+}
+
+.ump-file-item--uploading .ump-file-status {
+	color: #0073aa;
+}
+
+.ump-file-item--success {
+	border-left-color: #00a32a;
+	background: #f0fdf4;
+}
+
+.ump-file-item--success .ump-file-status {
+	color: #00a32a;
+}
+
+.ump-file-item--success .ump-progress-bar {
+	background: #00a32a;
+}
+
+.ump-file-item--skipped {
+	border-left-color: #dba617;
+	background: #fffbf0;
+}
+
+.ump-file-item--skipped .ump-file-status {
+	color: #dba617;
+}
+
+.ump-file-item--skipped .ump-progress-bar {
+	background: #dba617;
+}
+
+.ump-file-item--error {
+	border-left-color: #d63638;
+	background: #fff5f5;
+}
+
+.ump-file-item--error .ump-file-status {
+	color: #d63638;
+}
+
+.ump-file-item--error .ump-progress-bar {
+	background: #d63638;
+}
+
+/* --------------------------------------------------------------------------
+   Keyframes
+   -------------------------------------------------------------------------- */
+@keyframes umpFadeIn {
+	from { opacity: 0; }
+	to   { opacity: 1; }
+}
+
+@keyframes umpSlideIn {
+	from { opacity: 0; transform: translateY( -16px ) scale( 0.98 ); }
+	to   { opacity: 1; transform: translateY( 0 )    scale( 1 ); }
+}
+
+@keyframes umpBounce {
+	from { transform: translateY( 0 ); }
+	to   { transform: translateY( -12px ); }
+}
+
+/* --------------------------------------------------------------------------
+   RTL
+   -------------------------------------------------------------------------- */
+.rtl .ump-file-item {
+	border-left: none;
+	border-right: 3px solid #c3c4c7;
+}
+.rtl .ump-file-item--uploading { border-right-color: #0073aa; }
+.rtl .ump-file-item--success   { border-right-color: #00a32a; }
+.rtl .ump-file-item--skipped   { border-right-color: #dba617; }
+.rtl .ump-file-item--error     { border-right-color: #d63638; }
