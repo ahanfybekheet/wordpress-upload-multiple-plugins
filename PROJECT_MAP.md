@@ -1,12 +1,12 @@
 # PROJECT_MAP.md
 > Single source of architectural truth. Keep synchronized with every non-trivial change.
-> Last updated: 2026-05-13 | Version: 1.0.0
+> Last updated: 2026-09-19 | Version: 1.1.0
 
 ---
 
 ## [PROJECT_OVERVIEW]
 
-**Purpose:** WordPress admin plugin for drag-and-drop batch installation and activation of multiple plugins via `.zip` upload — without navigating to the native upload page.
+**Purpose:** WordPress admin plugin for batch installation and activation of multiple plugins via `.zip` upload or WordPress.org plugin slug lists.
 
 **Core business goals:**
 - Reduce friction when seeding development/staging environments with many plugins.
@@ -15,7 +15,7 @@
 
 **Scope boundaries (intentionally excluded):**
 - ❌ Plugin update/rollback — install only, not upgrade workflow.
-- ❌ Remote URL installation — local ZIP files only.
+- ❌ Arbitrary remote URL installation — slug installs only use packages returned by the WordPress.org API.
 - ❌ Theme installation — plugins only.
 - ❌ Front-end usage — admin-only surface.
 - ❌ Multisite network activation — single-site scope.
@@ -36,7 +36,7 @@
 
 **No Composer/NPM dependencies.** Pure PHP + vanilla WP APIs + jQuery.
 
-**External services/integrations:** None. Fully self-contained.
+**External services/integrations:** WordPress.org Plugin API and package downloads for slug-based installs.
 
 **Deprecated/rejected technologies:**
 
@@ -98,6 +98,19 @@ JSON response → updateFileItem()    [ump-admin.js]
 processQueue() → next file in queue
 ```
 
+### Slug-list request lifecycle
+
+```
+User pastes slug[@version] [-a|-n] lines
+  → ump-admin.js queues non-empty lines sequentially
+  → POST AJAX action=ump_install_slug for one specification
+  → UMP_Installer::parse_plugin_list() validates syntax and activation override
+  → UMP_Installer::install_from_slug() resolves package via plugins_api()
+  → download_url() creates a temporary ZIP
+  → UMP_Installer::install() performs the shared validation/install/activation flow
+  → temporary ZIP is deleted and the per-plugin result is rendered
+```
+
 ### Global drag-drop overlay (not on native DnD pages)
 
 ```
@@ -109,7 +122,7 @@ document dragleave (dragCounter === 0)
   └─ hide overlay
 ```
 
-**No background jobs, queues, or cron.** All processing is synchronous within a single AJAX request per file.
+**No background jobs or cron.** The browser queue is sequential; each ZIP or slug is processed synchronously in one AJAX request.
 
 ---
 
@@ -123,19 +136,22 @@ upload-multiple-plugins/
 ├── uninstall.php                 # Cleanup: deletes ump_settings option on plugin deletion
 ├── includes/
 │   ├── class-ump-admin.php       # Hooks: enqueue, admin bar, modal HTML, AJAX handler
-│   ├── class-ump-installer.php   # Pure logic: ZIP validation + WP install/activate (all static)
+│   ├── class-ump-installer.php   # Slug resolution + ZIP validation/install/activate (all static)
 │   └── class-ump-settings.php   # Settings API: DB read/write, settings page UI
-└── assets/
+├── assets/
     ├── css/ump-admin.css         # All .ump-* styles, animations, RTL support
     └── js/ump-admin.js           # Modal, DnD, queue, AJAX, DOM updates
+└── tests/
+    ├── test-plugin-list-parser.php
+    └── test-slug-installer.php
 ```
 
 ### Module boundaries
 
 | Module | Responsibility | Dependencies |
 |---|---|---|
-| `UMP_Admin` | UI surface, enqueue, AJAX entry | `UMP_Settings::get()`, `UMP_Installer::install()` |
-| `UMP_Installer` | File validation + installation logic | `UMP_Settings::get()`, WP core filesystem/plugin APIs |
+| `UMP_Admin` | UI surface, enqueue, ZIP and slug AJAX entry points | `UMP_Settings::get()`, `UMP_Installer` public install methods |
+| `UMP_Installer` | Slug parsing, WordPress.org package resolution, ZIP validation + installation logic | `UMP_Settings::get()`, WP core filesystem/plugin APIs |
 | `UMP_Settings` | Config persistence + settings page | WP Settings API, `get_option()` |
 | `ump-admin.js` | Client UI, DnD, sequential queue, AJAX | `umpData` (localized), jQuery |
 
@@ -149,7 +165,7 @@ upload-multiple-plugins/
 
 | Variable | Type | Purpose |
 |---|---|---|
-| `queue` | `File[]` | Pending files to upload |
+| `queue` | `object[]` | Pending ZIP uploads and slug specifications |
 | `processing` | `boolean` | Mutex lock — prevents parallel uploads |
 | `dragCounter` | `number` | Tracks nested dragenter/dragleave to avoid flicker |
 
@@ -168,20 +184,20 @@ No custom tables. No transients. No object cache.
 | Layer | Mechanism |
 |---|---|
 | Capability | All UI + AJAX gates on `current_user_can('activate_plugins')` |
-| Nonce | `ump_install` nonce on every AJAX request |
+| Nonce | Action-specific `ump_install` and `ump_install_slug` nonces on AJAX requests |
 | File type | `.zip` extension + MIME whitelist (`application/zip`, `application/x-zip`, `application/x-zip-compressed`, `application/octet-stream`) |
 | ZIP integrity | `ZipArchive` open check + single root dir + no traversal paths + Plugin Name header required |
 | Filesystem | Requires `FS_METHOD = direct`; fails safely if not |
 
 **Trust zones:**
-- PHP server-side code is the trust boundary — JS is untrusted input; all validation re-done in `ajax_install()`.
+- PHP server-side code is the trust boundary — JS is untrusted input; both AJAX handlers validate their request data.
 - ZIP contents are untrusted until `validate_zip()` passes all checks.
 
 ### Logging / error handling
 
 - AJAX errors return structured `WP_Error` or `wp_send_json_error()` with a message string.
 - PHP upload errors mapped to user strings in `UMP_Admin::upload_error_message()`.
-- No server-side logging — errors surface to the UI only.
+- Slug lookup, version, download, and installation failures are written to the PHP error log when `WP_DEBUG` is enabled.
 - `WP_Error` codes used in `validate_zip()`: `no_ziparchive`, `invalid_zip`, `traversal`, `empty_zip`, `multiple_roots`, `no_plugin_header`.
 
 ---
@@ -197,6 +213,7 @@ No custom tables. No transients. No object cache.
 | D-5 | `FS_METHOD = direct` requirement | Avoids credential prompt UI complexity; plugin is explicitly for dev environments | Full filesystem abstraction — adds UI scope beyond plugin purpose |
 | D-6 | Single `ump_settings` option (array) | One DB read for all config; Settings API handles field registration cleanly | Separate options per setting — unnecessary `get_option` calls |
 | D-7 | Modal injected in `admin_footer` | Ensures modal is always available regardless of current admin page | Page-specific injection — limits admin-bar button to specific pages |
+| D-8 | One AJAX request per slug | Keeps failure reporting isolated and avoids one failed package aborting the full pasted list | One long-running bulk request — more vulnerable to request timeouts |
 
 ---
 
@@ -228,7 +245,12 @@ No custom tables. No transients. No object cache.
 - [x] Keyboard accessibility (Escape, Enter/Space on drop zone, aria attributes)
 - [x] i18n-ready strings via `wp_localize_script`
 
-### M-5: Future (not started)
+### M-5: WordPress.org bulk installs ✅ COMPLETE
+- [x] Bulk WordPress.org slug installation with optional versions and per-plugin activation
+- [x] Parser regression test for slug-list syntax and activation precedence
+- [x] Mocked integration test for latest/versioned package selection and temporary-file cleanup
+
+### M-6: Future
 - [ ] Multisite compatibility audit
 - [ ] Unit tests for `UMP_Installer::validate_zip()` (PHPUnit + WP_Mock)
 - [ ] JS tests for queue/upload logic (Jest or QUnit)
@@ -240,7 +262,7 @@ No custom tables. No transients. No object cache.
 
 | # | Item | Type | Notes |
 |---|---|---|---|
-| O-1 | No automated tests | Tech debt | All validation logic is manually testable; no test harness exists |
+| O-1 | Limited automated tests | Tech debt | Slug parsing and package-selection paths have standalone tests; ZIP validation and real WordPress integration still lack a full test harness |
 | O-2 | `FS_METHOD = direct` assumption | Risky assumption | Hosting environments using FTP filesystem silently fail at `init_filesystem()` — no user-facing explanation beyond generic error |
 | O-3 | MIME check uses `finfo` implicitly via WP | Assumption | WP's `wp_check_filetype_and_ext()` behavior varies; current code validates MIME manually — confirm it covers all server configs |
 | O-4 | No `.pot` / translation files | Missing | Strings are i18n-ready in PHP but no `languages/` directory; no `load_plugin_textdomain()` call in `ump_init()` |

@@ -13,6 +13,7 @@
 	// DOM references (populated on DOMReady)
 	// ---------------------------------------------------------------------------
 	var $modal, $backdrop, $closeBtn, $dropZone, $fileInput, $fileList, $overlay;
+	var $pluginList, $activateDefault, $installList;
 
 	// ---------------------------------------------------------------------------
 	// Init
@@ -25,10 +26,14 @@
 		$fileInput = $( '#ump-file-input' );
 		$fileList  = $( '#ump-file-list' );
 		$overlay   = $( '#ump-global-overlay' );
+		$pluginList = $( '#ump-plugin-list' );
+		$activateDefault = $( '#ump-activate-default' );
+		$installList = $( '#ump-install-list' );
 
 		bindAdminBarButton();
 		bindModalControls();
 		bindDropZone();
+		bindBulkInstall();
 
 		if ( ! umpData.nativeDndPage ) {
 			initGlobalDnd();
@@ -45,6 +50,32 @@
 		} );
 	}
 
+	function bindBulkInstall() {
+		$installList.on( 'click', function () {
+			var input = $pluginList.val().trim();
+			if ( ! input ) {
+				addStatusMessage( umpData.i18n.noPlugins, 'error' );
+				return;
+			}
+
+			input.split( /\r?\n/ ).forEach( function ( line ) {
+				var spec = line.trim();
+				if ( spec ) {
+					queue.push( {
+						type: 'slug',
+						spec: spec,
+						defaultActivate: $activateDefault.is( ':checked' )
+					} );
+				}
+			} );
+
+			$pluginList.val( '' );
+			if ( ! processing ) {
+				processQueue();
+			}
+		} );
+	}
+
 	// ---------------------------------------------------------------------------
 	// Modal controls
 	// ---------------------------------------------------------------------------
@@ -55,6 +86,14 @@
 		$( document ).on( 'keydown', function ( e ) {
 			if ( e.key === 'Escape' && ! $modal.attr( 'hidden' ) ) {
 				closeModal();
+			}
+		} );
+
+		$( document ).on( 'paste', function ( e ) {
+			if ( $modal.attr( 'hidden' ) ) return;
+			var cd = e.originalEvent && e.originalEvent.clipboardData;
+			if ( cd && cd.files && cd.files.length ) {
+				handleFiles( cd.files );
 			}
 		} );
 	}
@@ -187,7 +226,7 @@
 		}
 
 		zipFiles.forEach( function ( file ) {
-			queue.push( file );
+			queue.push( { type: 'file', file: file } );
 		} );
 
 		if ( ! processing ) {
@@ -201,8 +240,9 @@
 			return;
 		}
 		processing = true;
-		var file = queue.shift();
-		uploadFile( file, function () {
+		var item = queue.shift();
+		var install = item.type === 'slug' ? installSlug : uploadFile;
+		install( item, function () {
 			processQueue();
 		} );
 	}
@@ -210,7 +250,8 @@
 	// ---------------------------------------------------------------------------
 	// AJAX upload
 	// ---------------------------------------------------------------------------
-	function uploadFile( file, callback ) {
+	function uploadFile( queueItem, callback ) {
+		var file = queueItem.file;
 		var itemId  = 'ump-item-' + Date.now() + '-' + Math.random().toString( 36 ).substr( 2, 5 );
 		var $item   = renderFileItem( itemId, file.name, 'uploading', umpData.i18n.uploading );
 
@@ -238,23 +279,7 @@
 				return xhr;
 			},
 			success: function ( response ) {
-				if ( response.success ) {
-					var data   = response.data;
-					var status = 'success';
-					var label  = umpData.i18n.installed;
-
-					if ( data.skipped ) {
-						status = 'skipped';
-						label  = umpData.i18n.skipped;
-					} else if ( data.activated ) {
-						label = umpData.i18n.activated;
-					}
-
-					updateFileItem( $item, status, label, data.message );
-				} else {
-					var msg = ( response.data && response.data.message ) ? response.data.message : umpData.i18n.error;
-					updateFileItem( $item, 'error', umpData.i18n.error, msg );
-				}
+				finishInstall( $item, response );
 				callback();
 			},
 			error: function ( jqXHR ) {
@@ -262,6 +287,52 @@
 				callback();
 			}
 		} );
+	}
+
+	function installSlug( queueItem, callback ) {
+		var itemId = 'ump-item-' + Date.now() + '-' + Math.random().toString( 36 ).substr( 2, 5 );
+		var $item  = renderFileItem( itemId, queueItem.spec, 'uploading', umpData.i18n.installing );
+
+		$.ajax( {
+			url: umpData.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'ump_install_slug',
+				nonce: umpData.slugNonce,
+				spec: queueItem.spec,
+				default_activate: queueItem.defaultActivate ? '1' : ''
+			},
+			processData: true,
+			contentType: 'application/x-www-form-urlencoded; charset=UTF-8',
+			success: function ( response ) {
+				finishInstall( $item, response );
+				callback();
+			},
+			error: function ( jqXHR ) {
+				updateFileItem( $item, 'error', umpData.i18n.error, jqXHR.statusText );
+				callback();
+			}
+		} );
+	}
+
+	function finishInstall( $item, response ) {
+		if ( response.success ) {
+			var data   = response.data;
+			var status = 'success';
+			var label  = umpData.i18n.installed;
+
+			if ( data.skipped ) {
+				status = 'skipped';
+				label  = umpData.i18n.skipped;
+			} else if ( data.activated ) {
+				label = umpData.i18n.activated;
+			}
+
+			updateFileItem( $item, status, label, data.message );
+		} else {
+			var msg = ( response.data && response.data.message ) ? response.data.message : umpData.i18n.error;
+			updateFileItem( $item, 'error', umpData.i18n.error, msg );
+		}
 	}
 
 	// ---------------------------------------------------------------------------

@@ -126,6 +126,7 @@ class UMP_Settings {
 			<hr>
 			<h2><?php esc_html_e( 'How to Use', 'upload-multiple-plugins' ); ?></h2>
 			<ul style="list-style:disc;padding-left:1.5em;">
+				<li><?php esc_html_e( 'Paste WordPress.org plugin slugs into the admin-bar installer, one per line.', 'upload-multiple-plugins' ); ?></li>
 				<li><?php esc_html_e( 'Drag and drop one or more plugin ZIP files anywhere on the WordPress admin.', 'upload-multiple-plugins' ); ?></li>
 				<li><?php esc_html_e( 'On media upload pages, use the "Upload Plugins" button in the admin bar instead.', 'upload-multiple-plugins' ); ?></li>
 				<li><?php esc_html_e( 'Each plugin is processed and reported individually.', 'upload-multiple-plugins' ); ?></li>

@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Upload Multiple Plugins
  * Plugin URI:  https://github.com/
- * Description: Fast drag-and-drop installation and activation of multiple plugins. Built for development and testing environments.
- * Version:     1.0.0
+ * Description: Batch install and optionally activate plugins from ZIP files or WordPress.org slugs.
+ * Version:     1.1.0
  * Author:      Dev Tools
  * License:     GPL-2.0-or-later
  * Requires at least: 5.0
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'UMP_VERSION',  '1.0.0' );
+define( 'UMP_VERSION',  '1.1.0' );
 define( 'UMP_FILE',     __FILE__ );
 define( 'UMP_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'UMP_URL',      plugin_dir_url( __FILE__ ) );

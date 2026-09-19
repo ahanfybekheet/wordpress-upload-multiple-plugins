@@ -7,6 +7,139 @@ class UMP_Installer {
 	const PLUGIN_HEADER_READ_BYTES = 8192;
 
 	/**
+	 * Parse newline-delimited WordPress.org plugin specifications.
+	 *
+	 * @param string $input            Plugin specifications, one per line.
+	 * @param bool   $default_activate Activation choice when a line has no flag.
+	 * @return array<int,array{slug:string,version:string,activate:bool}>|WP_Error
+	 */
+	public static function parse_plugin_list( string $input, bool $default_activate ) {
+		$plugins = [];
+		$lines   = preg_split( '/\r\n|\r|\n/', $input );
+
+		foreach ( $lines as $index => $line ) {
+			$line = trim( $line );
+			if ( '' === $line ) {
+				continue;
+			}
+
+			if ( ! preg_match( '/^([a-z0-9]+(?:-[a-z0-9]+)*)(?:@([A-Za-z0-9][A-Za-z0-9._-]*))?(?:\s+(-a|--activate|-n|--no-activate))?$/', $line, $matches ) ) {
+				return new WP_Error(
+					'invalid_plugin_spec',
+					sprintf(
+						/* translators: %d line number containing an invalid plugin specification */
+						__( 'Invalid plugin specification on line %d.', 'upload-multiple-plugins' ),
+						$index + 1
+					)
+				);
+			}
+
+			$flag     = isset( $matches[3] ) ? $matches[3] : '';
+			$activate = $default_activate;
+			if ( '-a' === $flag || '--activate' === $flag ) {
+				$activate = true;
+			} elseif ( '-n' === $flag || '--no-activate' === $flag ) {
+				$activate = false;
+			}
+
+			$plugins[] = [
+				'slug'     => $matches[1],
+				'version'  => isset( $matches[2] ) ? $matches[2] : '',
+				'activate' => $activate,
+			];
+		}
+
+		if ( empty( $plugins ) ) {
+			return new WP_Error( 'empty_plugin_list', __( 'Enter at least one plugin slug.', 'upload-multiple-plugins' ) );
+		}
+
+		return $plugins;
+	}
+
+	/**
+	 * Install a WordPress.org plugin by slug and optional version.
+	 *
+	 * @param string $slug     WordPress.org plugin slug.
+	 * @param string $version  Requested version, or an empty string for latest.
+	 * @param bool   $activate Whether to activate after installation.
+	 * @return array{success:bool,message:string,installed:bool,activated:bool,skipped:bool}
+	 */
+	public static function install_from_slug( string $slug, string $version, bool $activate ): array {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
+
+		$result = [
+			'success'   => false,
+			'message'   => '',
+			'installed' => false,
+			'activated' => false,
+			'skipped'   => false,
+		];
+
+		$api = plugins_api( 'plugin_information', [
+			'slug'   => $slug,
+			'fields' => [ 'versions' => true ],
+		] );
+
+		if ( is_wp_error( $api ) ) {
+			$result['message'] = sprintf(
+				/* translators: %s WordPress.org API error message */
+				__( 'Could not find plugin: %s', 'upload-multiple-plugins' ),
+				$api->get_error_message()
+			);
+			self::log_error( $slug, $result['message'] );
+			return $result;
+		}
+
+		$resolved_version = $version;
+		$package_url      = isset( $api->download_link ) ? $api->download_link : '';
+		if ( '' !== $version ) {
+			$versions = isset( $api->versions ) ? (array) $api->versions : [];
+			if ( empty( $versions[ $version ] ) ) {
+				$result['message'] = sprintf(
+					/* translators: 1 plugin slug, 2 requested version */
+					__( 'Version %2$s is not available for %1$s.', 'upload-multiple-plugins' ),
+					$slug,
+					$version
+				);
+				self::log_error( $slug, $result['message'] );
+				return $result;
+			}
+			$package_url = $versions[ $version ];
+		} elseif ( isset( $api->version ) ) {
+			$resolved_version = $api->version;
+		}
+
+		if ( ! is_string( $package_url ) || '' === $package_url ) {
+			$result['message'] = __( 'WordPress.org did not provide a download package for this plugin.', 'upload-multiple-plugins' );
+			self::log_error( $slug, $result['message'] );
+			return $result;
+		}
+
+		$temporary_file = download_url( $package_url );
+		if ( is_wp_error( $temporary_file ) ) {
+			$result['message'] = sprintf(
+				/* translators: %s package download error message */
+				__( 'Download failed: %s', 'upload-multiple-plugins' ),
+				$temporary_file->get_error_message()
+			);
+			self::log_error( $slug, $result['message'] );
+			return $result;
+		}
+
+		$archive_name = $slug . ( '' !== $resolved_version ? '-' . $resolved_version : '' ) . '.zip';
+		$result       = self::install( $temporary_file, $archive_name, [ 'auto_activate' => $activate ] );
+		wp_delete_file( $temporary_file );
+
+		if ( ! $result['success'] ) {
+			self::log_error( $slug, $result['message'] );
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Validate a ZIP file for safe plugin structure.
 	 *
 	 * @param string $zip_path Absolute path to the uploaded ZIP.
@@ -96,9 +229,10 @@ class UMP_Installer {
 	 *
 	 * @param string $zip_path     Absolute path to uploaded ZIP.
 	 * @param string $original_name Original filename for error messages.
+	 * @param array  $options       Per-install behavior overrides.
 	 * @return array{success:bool,message:string,installed:bool,activated:bool,skipped:bool}
 	 */
-	public static function install( string $zip_path, string $original_name ): array {
+	public static function install( string $zip_path, string $original_name, array $options = [] ): array {
 		$result = [
 			'success'   => false,
 			'message'   => '',
@@ -118,7 +252,7 @@ class UMP_Installer {
 		$plugin_file   = $validation['plugin_file']; // e.g. "my-plugin/my-plugin.php"
 
 		$settings         = UMP_Settings::get();
-		$auto_activate    = $settings['auto_activate'];
+		$auto_activate    = array_key_exists( 'auto_activate', $options ) ? (bool) $options['auto_activate'] : $settings['auto_activate'];
 		$preserve         = $settings['preserve_existing'];
 		$destination_dir  = WP_PLUGIN_DIR . '/' . $plugin_folder;
 
@@ -189,5 +323,11 @@ class UMP_Installer {
 
 		$creds = request_filesystem_credentials( '', $method, false, WP_PLUGIN_DIR, [], false );
 		return (bool) WP_Filesystem( $creds );
+	}
+
+	private static function log_error( string $context, string $message ): void {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( sprintf( 'Upload Multiple Plugins [%s]: %s', $context, $message ) );
+		}
 	}
 }

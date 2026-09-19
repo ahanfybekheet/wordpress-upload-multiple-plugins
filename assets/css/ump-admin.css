@@ -197,6 +197,60 @@ body.ump-modal-open {
 }
 
 /* --------------------------------------------------------------------------
+   Bulk slug installation
+   -------------------------------------------------------------------------- */
+.ump-bulk-install {
+	margin-top: 18px;
+	padding-top: 16px;
+	border-top: 1px solid #c3c4c7;
+}
+
+.ump-bulk-title {
+	margin: 0 0 6px;
+	color: #1d2327;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.ump-bulk-help {
+	margin: 0 0 8px;
+	color: #646970;
+	font-size: 12px;
+}
+
+.ump-plugin-list {
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 104px;
+	padding: 8px 10px;
+	border: 1px solid #c3c4c7;
+	border-radius: 3px;
+	color: #1d2327;
+	font-family: monospace;
+	font-size: 13px;
+	resize: vertical;
+}
+
+.ump-plugin-list:focus {
+	border-color: #0073aa;
+	outline: 1px solid #0073aa;
+}
+
+.ump-bulk-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 8px;
+}
+
+.ump-activate-default {
+	color: #646970;
+	font-size: 12px;
+}
+
+/* --------------------------------------------------------------------------
    File list
    -------------------------------------------------------------------------- */
 .ump-file-list {

@@ -1,6 +1,6 @@
 # Upload Multiple Plugins
 
-Fast drag-and-drop installation and activation of multiple WordPress plugins. Optimized for development and testing environments.
+Fast batch installation and activation of multiple WordPress plugins from ZIP files or WordPress.org slugs. Optimized for development and testing environments.
 
 ## Installation
 
@@ -9,6 +9,24 @@ Fast drag-and-drop installation and activation of multiple WordPress plugins. Op
 3. Go to **Plugins** in your WordPress admin and click **Activate**
 
 ## Usage
+
+### Plugin Slug List
+
+Paste one plugin per line into **Install from WordPress.org**:
+
+```text
+elementor -a
+akismet -a
+woocommerce@9.8.1 -a
+wordpress-seo@25.4 -a
+```
+
+- `slug` installs the latest available version.
+- `slug@version` installs that specific available version.
+- `-a` or `--activate` activates that plugin after installation.
+- `-n` or `--no-activate` keeps that plugin inactive.
+- Entries without a flag use the **Activate entries without a flag** checkbox.
+- Plugins are processed sequentially and report their result individually.
 
 ### Drag & Drop (Primary)
 - Drag one or more plugin ZIP files anywhere in the WordPress admin dashboard
@@ -42,9 +60,10 @@ Navigate to **Plugins > Upload Multiple** to configure:
 ## How It Works
 
 1. **Validation**: ZIP is scanned for safe structure before extraction
-2. **Installation**: Contents extracted to `/wp-content/plugins/`
-3. **Activation** (optional): Plugin activated if configured
-4. **Feedback**: Per-file results shown with success/error status
+2. **Resolution**: Slug installs resolve the latest or requested version through WordPress.org
+3. **Installation**: Contents are extracted to `/wp-content/plugins/`
+4. **Activation** (optional): Each plugin is activated if configured
+5. **Feedback**: Per-plugin results show success, skip, or error status
 
 ---
 
